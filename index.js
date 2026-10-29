@@ -1,64 +1,81 @@
-import { getRequestHeaders, selectCharacterById, openCharacterChat } from '../../../../script.js';
-import { getContext } from '../../../extensions.js';
-
+// Không dùng import đường dẫn tương đối để tránh lỗi lệch thư mục third-party
 const EXTENSION_NAME = 'Global Chat Search';
 let isSearching = false;
 let cancelSearch = false;
 
-// 1. Tạo giao diện Modal và nút bấm trong menu Extensions
-function createUI() {
-    if (document.getElementById('gcs-modal')) return;
-
-    const modalHtml = `
-        <div id="gcs-modal">
-            <div class="gcs-modal-content">
-                <div class="gcs-header">
-                    <h3><i class="fa-solid fa-magnifying-glass"></i> Tìm kiếm toàn bộ lịch sử Chat</h3>
-                    <span class="gcs-close" id="gcs-close-btn">×</span>
-                </div>
-                <div class="gcs-search-bar">
-                    <input type="text" id="gcs-input" placeholder="Nhập từ khóa cần tìm (nhấn Enter để tìm)..." />
-                    <button id="gcs-search-btn" class="menu_button">Tìm kiếm</button>
-                    <button id="gcs-stop-btn" class="menu_button" style="display:none; background:#a33;">Dừng</button>
-                </div>
-                <div class="gcs-status" id="gcs-status">Sẵn sàng.</div>
-                <div class="gcs-results" id="gcs-results"></div>
-            </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    // Thêm nút vào menu Extensions (biểu tượng khối rubik/cây đũa thần cạnh khung nhập chat)
-    const extMenu = document.getElementById('extensionsMenu');
-    if (extMenu) {
-        const menuItem = document.createElement('div');
-        menuItem.className = 'list-group-item flex-container flexGap5 interactable';
-        menuItem.id = 'gcs-open-menu-btn';
-        menuItem.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> <span>Tìm kiếm toàn bộ Chat</span>`;
-        menuItem.addEventListener('click', () => {
-            document.getElementById('gcs-modal').style.display = 'flex';
-            document.getElementById('gcs-input').focus();
-        });
-        extMenu.appendChild(menuItem);
-    }
-
-    // Gán sự kiện
-    document.getElementById('gcs-close-btn').addEventListener('click', () => {
-        document.getElementById('gcs-modal').style.display = 'none';
-    });
-
-    document.getElementById('gcs-search-btn').addEventListener('click', executeGlobalSearch);
-    document.getElementById('gcs-stop-btn').addEventListener('click', () => { cancelSearch = true; });
-    document.getElementById('gcs-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !isSearching) executeGlobalSearch();
-    });
+function getSTContext() {
+    return window.SillyTavern?.getContext ? window.SillyTavern.getContext() : null;
 }
 
-// 2. Các hàm gọi API lấy danh sách và nội dung file chat của từng nhân vật
+function getHeaders() {
+    const ctx = getSTContext();
+    if (ctx && typeof ctx.getRequestHeaders === 'function') {
+        return ctx.getRequestHeaders();
+    }
+    return { 'Content-Type': 'application/json' };
+}
+
+// 1. Tạo giao diện Modal và nút bấm
+function createUI() {
+    if (!document.getElementById('gcs-modal')) {
+        const modalHtml = `
+            <div id="gcs-modal">
+                <div class="gcs-modal-content">
+                    <div class="gcs-header">
+                        <h3><i class="fa-solid fa-magnifying-glass"></i> Tìm kiếm toàn bộ lịch sử Chat</h3>
+                        <span class="gcs-close" id="gcs-close-btn">×</span>
+                    </div>
+                    <div class="gcs-search-bar">
+                        <input type="text" id="gcs-input" placeholder="Nhập từ khóa cần tìm (nhấn Enter)..." />
+                        <button id="gcs-search-btn" class="menu_button">Tìm kiếm</button>
+                        <button id="gcs-stop-btn" class="menu_button" style="display:none; background:#a33;">Dừng</button>
+                    </div>
+                    <div class="gcs-status" id="gcs-status">Sẵn sàng.</div>
+                    <div class="gcs-results" id="gcs-results"></div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        document.getElementById('gcs-close-btn').addEventListener('click', () => {
+            document.getElementById('gcs-modal').style.display = 'none';
+        });
+
+        document.getElementById('gcs-search-btn').addEventListener('click', executeGlobalSearch);
+        document.getElementById('gcs-stop-btn').addEventListener('click', () => { cancelSearch = true; });
+        document.getElementById('gcs-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !isSearching) executeGlobalSearch();
+        });
+    }
+
+    injectMenuButton();
+}
+
+function injectMenuButton() {
+    if (document.getElementById('gcs-open-menu-btn')) return true;
+
+    const extMenu = document.getElementById('extensionsMenu');
+    if (!extMenu) return false;
+
+    const menuItem = document.createElement('div');
+    menuItem.className = 'list-group-item flex-container flexGap5 interactable';
+    menuItem.id = 'gcs-open-menu-btn';
+    menuItem.tabIndex = 0;
+    menuItem.innerHTML = `<div class="fa-solid fa-magnifying-glass extensionsMenuExtensionButton"></div><span>Tìm kiếm toàn bộ Chat</span>`;
+    menuItem.addEventListener('click', () => {
+        document.getElementById('gcs-modal').style.display = 'flex';
+        document.getElementById('gcs-input').focus();
+    });
+
+    extMenu.appendChild(menuItem);
+    return true;
+}
+
+// 2. Lấy danh sách file chat & nội dung tin nhắn
 async function fetchCharacterChatList(avatarUrl) {
     const res = await fetch('/api/characters/chats', {
         method: 'POST',
-        headers: getRequestHeaders(),
+        headers: getHeaders(),
         body: JSON.stringify({ avatar_url: avatarUrl })
     });
     if (!res.ok) return [];
@@ -70,7 +87,7 @@ async function fetchChatMessages(chName, fileName, avatarUrl) {
     const cleanFileName = fileName.replace(/\.jsonl$/i, '');
     const res = await fetch('/api/chats/get', {
         method: 'POST',
-        headers: getRequestHeaders(),
+        headers: getHeaders(),
         body: JSON.stringify({
             ch_name: chName,
             file_name: cleanFileName,
@@ -81,13 +98,13 @@ async function fetchChatMessages(chName, fileName, avatarUrl) {
     return await res.json();
 }
 
-// 3. Hàm hỗ trợ escape ký tự đặc biệt và tạo đoạn trích dẫn có tô sáng từ khóa
+// 3. Xử lý chuỗi và tô sáng từ khóa
 function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, m => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[m]));
+    return String(str).replace(/[&<>"']/g, m => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[m]));
 }
 
 function escapeRegExp(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function buildHighlightedSnippet(text, query) {
@@ -105,11 +122,17 @@ function buildHighlightedSnippet(text, query) {
     return safeSnippet.replace(regex, '<span class="gcs-highlight">$1</span>');
 }
 
-// 4. Thực thi tìm kiếm trên mọi nhân vật và mọi file chat
+// 4. Thực thi tìm kiếm
 async function executeGlobalSearch() {
     if (isSearching) return;
     const query = document.getElementById('gcs-input').value.trim();
     if (!query) return;
+
+    const context = getSTContext();
+    if (!context) {
+        alert('Không lấy được Context của SillyTavern!');
+        return;
+    }
 
     isSearching = true;
     cancelSearch = false;
@@ -120,7 +143,6 @@ async function executeGlobalSearch() {
     const resultsEl = document.getElementById('gcs-results');
     resultsEl.innerHTML = '';
 
-    const context = getContext();
     const characters = context.characters || [];
     let matchCount = 0;
 
@@ -128,7 +150,7 @@ async function executeGlobalSearch() {
         for (let charId = 0; charId < characters.length; charId++) {
             if (cancelSearch) break;
             const char = characters[charId];
-            statusEl.textContent = `Đang quét nhân vật (${charId + 1}/${characters.length}): ${char.name}... (Đã tìm thấy: ${matchCount})`;
+            statusEl.textContent = `Đang quét nhân vật (${charId + 1}/${characters.length}): ${char.name}... (Đã thấy: ${matchCount})`;
 
             const chatFiles = await fetchCharacterChatList(char.avatar);
             if (!Array.isArray(chatFiles)) continue;
@@ -141,7 +163,6 @@ async function executeGlobalSearch() {
                 const messages = await fetchChatMessages(char.name, fileName, char.avatar);
                 if (!Array.isArray(messages)) continue;
 
-                // Phần tử [0] trong file .jsonl của SillyTavern luôn là metadata, tin nhắn thật bắt đầu từ index 1 (mesid = 0)
                 const startIndex = (messages.length > 0 && messages[0].chat_metadata !== undefined) ? 1 : 0;
 
                 for (let i = startIndex; i < messages.length; i++) {
@@ -164,11 +185,11 @@ async function executeGlobalSearch() {
             }
         }
         statusEl.textContent = cancelSearch
-            ? `Đã dừng tìm kiếm. Tìm thấy ${matchCount} kết quả.`
+            ? `Đã dừng. Tìm thấy ${matchCount} kết quả.`
             : `Hoàn tất! Tìm thấy ${matchCount} kết quả cho "${query}".`;
     } catch (err) {
-        console.error('[Global Chat Search] Lỗi khi tìm kiếm:', err);
-        statusEl.textContent = `Có lỗi xảy ra: ${err.message}`;
+        console.error('[Global Chat Search] Lỗi:', err);
+        statusEl.textContent = `Lỗi: ${err.message}`;
     } finally {
         isSearching = false;
         document.getElementById('gcs-search-btn').style.display = 'inline-block';
@@ -191,44 +212,55 @@ function appendResultItem(item) {
     resultsEl.appendChild(div);
 }
 
-// 5. Chuyển nhân vật, mở đúng file chat và cuộn tới đúng tin nhắn (hỗ trợ cả tin nhắn cũ bị ẩn do phân trang)
+// 5. Điều hướng tới nhân vật, mở file chat và cuộn tới tin nhắn
 async function navigateToMessage(charId, fileName, mesId) {
     const statusEl = document.getElementById('gcs-status');
-    statusEl.textContent = `Đang chuyển tới đoạn chat "${fileName}" (Tin nhắn #${mesId})...`;
+    statusEl.textContent = `Đang mở "${fileName}" (Tin nhắn #${mesId})...`;
 
     try {
-        const context = getContext();
+        const context = getSTContext();
 
-        // Bước 1: Chuyển sang nhân vật đó nếu đang ở nhân vật khác
+        // Chuyển nhân vật nếu khác nhân vật hiện tại
         if (String(context.characterId) !== String(charId)) {
-            await selectCharacterById(String(charId));
+            if (typeof context.selectCharacterById === 'function') {
+                await context.selectCharacterById(String(charId));
+            } else {
+                // Fallback click vào thẻ nhân vật
+                const charBlock = document.querySelector(`.character_select[chid="${charId}"]`);
+                if (charBlock) charBlock.click();
+                await new Promise(r => setTimeout(r, 800));
+            }
         }
 
-        // Bước 2: Mở file chat chứa tin nhắn đó nếu chưa mở
-        const currentChat = context.characters[charId]?.chat?.replace(/\.jsonl$/i, '');
+        // Mở file chat nếu chưa đúng file
+        const updatedContext = getSTContext();
+        const currentChat = updatedContext.characters[charId]?.chat?.replace(/\.jsonl$/i, '');
         if (currentChat !== fileName) {
-            await openCharacterChat(fileName);
+            // Gọi hàm openCharacterChat từ module hoặc context
+            if (typeof updatedContext.openCharacterChat === 'function') {
+                await updatedContext.openCharacterChat(fileName);
+            } else {
+                const scriptMod = await import('/script.js');
+                if (scriptMod && typeof scriptMod.openCharacterChat === 'function') {
+                    await scriptMod.openCharacterChat(fileName);
+                }
+            }
         }
 
-        // Đóng bảng tìm kiếm
         document.getElementById('gcs-modal').style.display = 'none';
-
-        // Bước 3: Tìm và cuộn tới đúng mesId
         await scrollToMesId(mesId);
     } catch (err) {
-        console.error('[Global Chat Search] Lỗi khi điều hướng:', err);
-        toastr.error('Không thể chuyển tới tin nhắn này.');
+        console.error('[Global Chat Search] Lỗi điều hướng:', err);
+        if (window.toastr) toastr.error('Không thể chuyển tới tin nhắn này.');
     }
 }
 
 async function scrollToMesId(mesId) {
-    // Chờ DOM của cuộc trò chuyện render xong
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(r => setTimeout(r, 500));
 
     let targetEl = document.querySelector(`.mes[mesid="${mesId}"]`);
-    let safetyLimit = 50; // Tối đa bấm nút "Tải thêm" 50 lần cho các file chat dài hàng ngàn tin nhắn
+    let safetyLimit = 60;
 
-    // Nếu tin nhắn nằm ở quá xa về trước và chưa được hiển thị trên DOM, kích hoạt nút #show_more_messages của ST
     while (!targetEl && safetyLimit > 0) {
         const showMoreBtn = document.getElementById('show_more_messages');
         if (showMoreBtn && showMoreBtn.offsetParent !== null) {
@@ -245,12 +277,17 @@ async function scrollToMesId(mesId) {
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         targetEl.classList.add('gcs-target-mes');
         setTimeout(() => targetEl.classList.remove('gcs-target-mes'), 3000);
-    } else {
-        toastr.warning(`Đã mở đúng file chat nhưng không tìm thấy tin nhắn #${mesId} trên màn hình.`);
+    } else if (window.toastr) {
+        toastr.warning(`Đã mở file chat nhưng không tìm thấy tin nhắn #${mesId}.`);
     }
 }
 
-// Khởi chạy khi SillyTavern tải xong
+// Khởi tạo an toàn và tự động gắn nút nếu menu load trễ
 jQuery(() => {
     createUI();
+    const checkInterval = setInterval(() => {
+        if (injectMenuButton()) {
+            clearInterval(checkInterval);
+        }
+    }, 1000);
 });
