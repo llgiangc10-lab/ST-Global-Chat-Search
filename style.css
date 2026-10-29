@@ -1,8 +1,42 @@
+/* Nút nổi (Floating Action Button) có thể kéo thả */
+#gcs-floating-btn {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b4261, #1f2335);
+    color: #e0af68;
+    border: 2px solid #e0af68;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: grab;
+    z-index: 2147483646; /* Luôn nổi trên mọi lớp giao diện */
+    user-select: none;
+    touch-action: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s;
+    opacity: 0.85;
+}
+
+#gcs-floating-btn:hover {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 6px 18px rgba(224, 175, 104, 0.45);
+}
+
+#gcs-floating-btn:active {
+    cursor: grabbing;
+}
+
 /* Khung Modal Tìm kiếm */
 #gcs-modal {
     display: none;
     position: fixed;
-    z-index: 9999;
+    z-index: 2147483647;
     left: 0;
     top: 0;
     width: 100%;
@@ -18,13 +52,13 @@
     color: var(--SmartThemeBodyColor, #e0e0e0);
     border: 1px solid var(--SmartThemeBorderColor, #444);
     border-radius: 10px;
-    width: 90%;
+    width: 92%;
     max-width: 720px;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
-    padding: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    padding: 18px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
 }
 
 .gcs-header {
@@ -32,12 +66,13 @@
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
-    padding-bottom: 12px;
-    margin-bottom: 15px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .gcs-header h3 {
     margin: 0;
+    font-size: 1.1em;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -48,7 +83,6 @@
     font-size: 26px;
     line-height: 1;
     opacity: 0.7;
-    transition: opacity 0.2s;
 }
 
 .gcs-close:hover {
@@ -57,8 +91,8 @@
 
 .gcs-search-bar {
     display: flex;
-    gap: 10px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 10px;
 }
 
 .gcs-search-bar input {
@@ -66,7 +100,7 @@
     padding: 10px 12px;
     border-radius: 6px;
     border: 1px solid var(--SmartThemeBorderColor, #555);
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.35);
     color: inherit;
     font-size: 14px;
 }
@@ -84,20 +118,20 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding-right: 6px;
+    padding-right: 4px;
 }
 
 .gcs-result-item {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--SmartThemeBorderColor, #3a3a3a);
     border-radius: 6px;
-    padding: 12px;
+    padding: 10px 12px;
     cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
+    transition: background 0.2s;
 }
 
 .gcs-result-item:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .gcs-result-meta {
@@ -107,10 +141,12 @@
     display: flex;
     justify-content: space-between;
     font-weight: bold;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 .gcs-result-snippet {
-    font-size: 0.95em;
+    font-size: 0.92em;
     line-height: 1.45;
     word-break: break-word;
 }
@@ -123,7 +159,6 @@
     border-radius: 3px;
 }
 
-/* Hiệu ứng sáng viền khi nhảy tới tin nhắn */
 @keyframes gcsPulse {
     0% { box-shadow: 0 0 0 0 rgba(224, 175, 104, 0.9); background-color: rgba(224, 175, 104, 0.25); }
     70% { box-shadow: 0 0 0 15px rgba(224, 175, 104, 0); background-color: rgba(224, 175, 104, 0.1); }
